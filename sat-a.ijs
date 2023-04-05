@@ -8,6 +8,7 @@ NB. ----------------------------------------
 NB. Knuth, pg 4: R (6) (unsatisfiable)
 Ru=:   > 1  2 _3;  2  3 _4;  3  4  1;  4 _1  2
 Ru=:Ru,>_1 _2  3; _2 _3  4; _3 _4 _1; _4  1 _2
+Ru=:;/Ru
 NB. Knuth R` (7) (satisfiable)
 R =: }:Ru
 
@@ -25,7 +26,7 @@ nwl =: #@cwl"_ 0
 
 NB. number of variables of boxed CNF list y
 NB. (max absolute value of the raze)
-nv =: {{>./|;y}}
+nvars =: {{>./|;y}}
 
 NB. notational helpers
 NB. ----------------------------------------
@@ -33,13 +34,14 @@ NB. ----------------------------------------
 not =: XOR 1:
 sgn =: AND 1:
 
-M =: {{ mm{~<:y }} :: {{ mm =: x (<:y) } mm }}
-ST=: {{ st{~<:y }}
-SZ=: {{ sz{~<:y }} :: {{ sz =: x (<:y) } sz }}
-L =: {{ ll{~<:y }}
-F =: {{ ff{~<:y }} :: {{ ff =: x (<:y) } ff }}
-B =: {{ bb{~<:y }} :: {{ bb =: x (<:y) } bb }}
-C =: {{ cc{~<:y }} :: {{ cc =: x (<:y) } cc }}
+M =: {{ if. y -: _ do. mm else. mm{~y end. }} :: {{ mm =: x y } mm }}
+ST=: {{ if. y -: _ do. st else. st{~y end. }}
+SZ=: {{ if. y -: _ do. sz else. sz{~y end. }} :: {{ sz =: x y } sz }}
+L =: {{ if. y -: _ do. ll else. ll{~y end. }}
+F =: {{ if. y -: _ do. ff else. ff{~y end. }} :: {{ ff =: x y } ff }}
+B =: {{ if. y -: _ do. bb else. bb{~y end. }} :: {{ bb =: x y } bb }}
+C =: {{ if. y -: _ do. cc else. cc{~y end. }} :: {{ cc =: x y } cc }}
+D =: {{ if. y -: _ do. dd else. dd{~y end. }} :: {{ dd =: x y } dd }}
 
 NB.   C 5 -> 4{cc
 NB. 3 C 5 -> cc =: 3 (4)}cc
@@ -63,8 +65,8 @@ linked=:{{ NB. builds a circular linked list
 
 knuth =: {{ NB. convert boxed cnf y to knuth form
   NB. --- input variables ----------------
-  nv =. nvars y
-  mm =: nv $ _  NB. list of move codes for each variable
+  nv =: nvars y
+  mm =: (nv+1) $ _  NB. list of move codes for each var, plus a blank.
 
   NB. --- clauses ------------------------
   NB. first convert _1 2 _3 .. to knuth numbers: 3 4 7
@@ -73,37 +75,62 @@ knuth =: {{ NB. convert boxed cnf y to knuth form
   yy =. |. ([: \:~ <&0++:@|)L:0 y
   sl =. +: nv + 1               NB. start of literals (2*nv+1 (0 1 empty))
   sz =: #&> yy                  NB. SIZE of each clause
-  st =: sv+0,}:+/\sz            NB. START of each clause
+  st =: sl+0,}:+/\sz            NB. START of each clause
+  dd =: 0"0 yy                  NB. deleted flag per clause
 
   NB. --- cells --------------------------
   NB. (one cell per literal in a clause)
   ll =: (sl$_),;yy              NB. literal for cell
   ul =. 2+i.sl-2                NB. unique literals (also index of "head" cell)
   lc =. +/ll=/ul                NB. counts of these literals
-  id =. sz#1+i.-#y              NB. id of clause to which a cell belongs
+  id =. sz#i.-#y                NB. id of clause to which a cell belongs
   cc =: _ _, lc, id             NB. cc=count of or id of clauses
   ff =: ul i:`(, )`}: linked ll NB. fwd: next cell with this literal
   bb =: ul i.`(,~)`}. linked ll NB. bak: prev cell with this literal
+}}
 
-  NB. -- return his state table, just for debugging
-  (i.#ll),ll,ff,bb,:cc }}
+lstate =: {{(,.'pLFBC');(i.#ll),ll,ff,bb,:cc }}  NB. state of cells/lits
+cstate =: {{(,.'C^#D');((i.# ST _),ST,SZ,:D)_}}  NB. state of clauses
 
 
-satA =: {{
-  knuth y                       NB. init variables in locale
+NB. TODO: make these local variables??
+
+NB. show currently active clauses
+clauses =: ST ({.@C;L)@(+i.@])"0 SZ
+
+satA =: {{NB. solve boxed cnf y using Knuth Algorithm A
+  knuth y                         NB. init variables in locale
 label_A1. NB. [Initialize]
-  a =: #cc                      NB. number of active clauses
-  d =: 0                        NB. search depth
+  a =: +/0<sz                     NB. no. of active clauses (#y at start)
+  am=: 1"0 sz
+  d =: 1                          NB. search depth+1
 label_A2. NB. [Choose]
-  b =: 2 * d+1                  NB. bit (literal) to set
+  b =: 2 * d                      NB. bit (literal) to set
   if. </C b+0 1 do. b=:b+1 end.
-  d M (sgn b) + 4 * 0=C not b
-  if. (C b) = a do. goto_AZ end.
+  d M~ (sgn b) + 4 * 0=C not b
+  if. (C b) = a do. goto_AZ. end.  NB. all terms satisfied!
 label_A3. NB. [Remove (not b)]
+  c =: C I. (not b) = L _          NB. clauses containing 'not b'
+  if. 1 e. SZ c do. goto_A5.       NB. removing last item = unsat
+  else. (SZ~ <:@SZ) c end.
 label_A4. NB. [Deactivate clauses for b]
+  c =: C I. b = L _                NB. clauses containing 'not b'
+  d D c =: (#~ 0 = D) c            NB. delete those that are not yet deleted.
+  a =: a - #c [ d =: d+1
+  goto_A2.
 label_A5. NB. [Try again]
 label_A6. NB. [Backtrack]
 label_A7. NB. [Reactivate clauses for b]
 label_A8. NB. [Unremove (not b)]
 
-label_AZ }}
+label_AZ. }}
+
+
+NB. begin main program
+satA R
+echo 'literals:'
+echo lstate''
+echo 'clause state:'
+echo cstate''
+echo 'clauses:'
+echo clauses _
