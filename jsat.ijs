@@ -55,15 +55,13 @@ NB. load a SAT in the format used by this web solver:
 NB. https://simewu.com/SAT-solver/
 loadSAT =: {{ > ".each LF cut '-_' charsub freads y }}
 
-NB. C is the set of clauses in the current problem
-C =: loadSAT 'zebra.sat'
-
 NB. turn rectangular array with zeros into list of boxed lists
 boxed =: {{-.&0 L:0 ;/y}}
-ZEBRA =: boxed C
+ZEBRA =: boxed loadSAT 'zebra.sat'
 
-NB. clauses containing the variable
-cwv =: {{C#~+./"1] y=|C}}
+NB. clauses in x containing the variable y (regardless of sign)
+NB. (this assumes inversion is provided by negative number)
+NB. cwv =: {{x#~+./"1] y=|x}}  TODO: FIX
 
 NB. group y by key x (where x is group number 0..n)
 groups =: {{ (/:~.x) { x </.y }}
