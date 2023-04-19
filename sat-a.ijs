@@ -1,5 +1,5 @@
 NB. Algorithm A in Satisfiability (TAOCP by Knuth)
-
+dbr 1
 
 NB. helper functions for inspecting the
 NB. problem as boxed literals
@@ -34,14 +34,27 @@ NB. ----------------------------------------
 not =: XOR 1:
 sgn =: AND 1:
 
+NB. -- vars --
+NB. M = movement codes per variable
 M =: {{ if. y -: _ do. mm else. mm{~y end. }} :: {{ mm =: x y } mm }}
+
+NB. --clauses--
+NB. ST = start of each clause
 ST=: {{ if. y -: _ do. st else. st{~y end. }}
+NB. SZ = size of each clause
 SZ=: {{ if. y -: _ do. sz else. sz{~y end. }} :: {{ sz =: x y } sz }}
-L =: {{ if. y -: _ do. ll else. ll{~y end. }}
-F =: {{ if. y -: _ do. ff else. ff{~y end. }} :: {{ ff =: x y } ff }}
-B =: {{ if. y -: _ do. bb else. bb{~y end. }} :: {{ bb =: x y } bb }}
-C =: {{ if. y -: _ do. cc else. cc{~y end. }} :: {{ cc =: x y } cc }}
+NB. deleted flag (per clause)
 D =: {{ if. y -: _ do. dd else. dd{~y end. }} :: {{ dd =: x y } dd }}
+
+NB. -- cells --
+NB. L =: literal in each cell (clauses are composed of cells)
+L =: {{ if. y -: _ do. ll else. ll{~y end. }}
+NB. Fwd link to next cell that contains same literal (in circular linked list)
+F =: {{ if. y -: _ do. ff else. ff{~y end. }} :: {{ ff =: x y } ff }}
+NB. backward link
+B =: {{ if. y -: _ do. bb else. bb{~y end. }} :: {{ bb =: x y } bb }}
+NB. the clause number for each cell
+C =: {{ if. y -: _ do. cc else. cc{~y end. }} :: {{ cc =: x y } cc }}
 
 NB.   C 5 -> 4{cc
 NB. 3 C 5 -> cc =: 3 (4)}cc
@@ -73,7 +86,7 @@ knuth =: {{ NB. convert boxed cnf y to knuth form
   NB. then sort each clause from highest to lowest
   NB. and then reverse the list of clauses
   yy =. |. ([: \:~ <&0++:@|)L:0 y
-  sl =. +: nv + 1               NB. start of literals (2*nv+1 (0 1 empty))
+  sl =: +: nv + 1               NB. start of literals (2*nv+1 (0 1 empty))
   sz =: #&> yy                  NB. SIZE of each clause
   st =: sl+0,}:+/\sz            NB. START of each clause
   dd =: 0"0 yy                  NB. deleted flag per clause
@@ -106,31 +119,39 @@ label_A1. NB. [Initialize]
   d =: 1                          NB. search depth+1
 label_A2. NB. [Choose]
   b =: 2 * d                      NB. bit (literal) to set
-  if. </C b+0 1 do. b=:b+1 end.
-  d M~ (sgn b) + 4 * 0=C not b
-  if. (C b) = a do. goto_AZ. end.  NB. all terms satisfied!
+  if. </C b+0 1 do. b=:b+1 end.   NB. choose whichever value for bit has more clauses.
+  d M~ (sgn b) + 4 * 0=C not b     NB. set move code
+  if. (C b) = a do. goto_AZ. end.  NB. all terms satisfied! (all clauses contained b)
 label_A3. NB. [Remove (not b)]
   c =: C I. (not b) = L _          NB. clauses containing 'not b'
   if. 1 e. SZ c do. goto_A5.       NB. removing last item = unsat
   else. (SZ~ <:@SZ) c end.
 label_A4. NB. [Deactivate clauses for b]
-  c =: C I. b = L _                NB. clauses containing 'not b'
-  d D c =: (#~ 0 = D) c            NB. delete those that are not yet deleted.
-  a =: a - #c [ d =: d+1
+  c =: C I. b = L _                NB. clauses containing b
+  d D c =: (#~ 0 = D) c            NB. delete those that are not yet deleted. (by storing depth)
+  NB. decrement the "number of clauses with this literal set" counters
+  ci =.  I.c e.~cc                 NB. indices for cells of the deleted clauses
+  (C~ <:@C)"0 L (#~ sl<]) ci       NB. decrease count for literals in those cells
+  a =: a - #c [ d =: d+1           NB. update total clause count
   goto_A2.
 label_A5. NB. [Try again]
+  echo 'got to step A5' throw.
 label_A6. NB. [Backtrack]
 label_A7. NB. [Reactivate clauses for b]
 label_A8. NB. [Unremove (not b)]
 
-label_AZ. }}
+label_AZ.
+  echo'!!!!!! satisified !!!!'
+  echo'assignments:', ": }. -. mm
+}}
 
 
 NB. begin main program
-satA R
+knuth R NB. just to show initial state
 echo 'literals:'
 echo lstate''
 echo 'clause state:'
 echo cstate''
 echo 'clauses:'
 echo clauses _
+satA R
