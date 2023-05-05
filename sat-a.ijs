@@ -31,6 +31,9 @@ nvars =: {{>./|;y}}
 NB. notational helpers
 NB. ----------------------------------------
 
+echo 'TODO!!! clause table row ^ is backwards'
+
+
 not =: XOR 1:
 sgn =: AND 1:
 

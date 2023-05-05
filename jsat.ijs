@@ -81,9 +81,10 @@ sat1 =: {{
   b =. choose_bit y
   r =. sat1 y when b
   if. UNS -: r do. r =. sat1 y when -b else. r,b return. end.
-  if. UNS -: r do. return. UNS else. r,-b return. end. }}
+  if. UNS -: r do. UNS return. else. r,-b return. end. }}
 
-choose_bit =: {{|0{;y}} NB. just take first variable we see
+NB. choose_bit =: {{|0{;{:y}} NB. just take first variable we see
+choose_bit =: {{|{.>{:y}} NB. just take first variable we see
 
 when =: {{ NB. assign bit y in boxed cnf x
   x =. x #~ -. y e.&> x  NB. remove clauses with given literal
